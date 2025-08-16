@@ -1,79 +1,147 @@
 import 'package:flutter/material.dart';
-import 'signuppage.dart'; // To navigate to the signup page // To navigate to the home page
-import 'role_selection_page.dart';
+import 'signuppage.dart'; // To navigate to the signup page
+import 'role_selection_page.dart'; // To navigate to the next page after login
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Controllers for the text fields
-    final TextEditingController usernameController = TextEditingController();
-    final TextEditingController passwordController = TextEditingController();
+  State<LoginPage> createState() => _LoginPageState();
+}
 
+class _LoginPageState extends State<LoginPage> {
+  // Controllers for the text fields
+  final TextEditingController usernameController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  bool _isPasswordVisible = false;
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
+      // The top app bar with the "Login" title
+      appBar: AppBar(
+        title: const Text(
+          'Login',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: const Color(0xFF2C3E50), // Dark blue-gray color
+        centerTitle: true,
+        elevation: 0, // No shadow for a flat look
+      ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
         child: Center(
           child: SingleChildScrollView(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Your app logo or title
+                // Large lock icon
                 const Icon(
-                  Icons.lock_open_rounded,
-                  size: 80,
-                  color: Colors.deepPurple,
+                  Icons.lock,
+                  size: 100,
+                  color: Color(0xFF34495E), // Darker shade for the icon
                 ),
                 const SizedBox(height: 20),
+
+                // Welcome text
                 const Text(
                   'Welcome Back!',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF34495E),
+                  ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 40),
 
                 // Username field
                 TextField(
                   controller: usernameController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Username',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    // Underline border
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey.shade400),
+                    ),
+                    focusedBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.redAccent, width: 2),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+
                 // Password field
                 TextField(
                   controller: passwordController,
-                  obscureText: true, // Hides the password
-                  decoration: const InputDecoration(
+                  obscureText: !_isPasswordVisible, // Hides/shows the password
+                  decoration: InputDecoration(
                     labelText: 'Password',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    // Underline border
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey.shade400),
+                    ),
+                    focusedBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.redAccent, width: 2),
+                    ),
+                    // Eye icon to toggle password visibility
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isPasswordVisible
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        color: Colors.grey,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isPasswordVisible = !_isPasswordVisible;
+                        });
+                      },
+                    ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 40),
+
                 // Login button
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(50),
+                    backgroundColor: Colors.redAccent, // Red button color
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(30), // Pill shape
                     ),
                   ),
                   onPressed: () {
-                    // Navigate to the home page after login
+                    // Navigate to the role selection page after login
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(
                         builder: (context) => const RoleSelectionPage(),
                       ),
                     );
                   },
-                  child: const Text('Login'),
+                  child: const Text(
+                    'Login',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 12),
+
                 // Signup button
-                TextButton(
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent, // Red button color
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30), // Pill shape
+                    ),
+                  ),
                   onPressed: () {
                     // Navigate to the signup page
                     Navigator.of(context).push(
@@ -82,7 +150,14 @@ class LoginPage extends StatelessWidget {
                       ),
                     );
                   },
-                  child: const Text('New here? Sign up'),
+                  child: const Text(
+                    'Sign Up',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ],
             ),

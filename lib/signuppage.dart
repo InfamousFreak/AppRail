@@ -1,80 +1,141 @@
 import 'package:flutter/material.dart';
-import 'homepage.dart'; // We will create this file next, for now it can be main.dart's MyHomePage
+import 'homepage.dart'; // Your app's home page
 
-class SignupPage extends StatelessWidget {
+class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Controllers for the text fields
-    final TextEditingController usernameController = TextEditingController();
-    final TextEditingController emailController = TextEditingController();
-    final TextEditingController passwordController = TextEditingController();
+  State<SignupPage> createState() => _SignupPageState();
+}
 
+class _SignupPageState extends State<SignupPage> {
+  // Controllers for the text fields
+  final TextEditingController usernameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  bool _isPasswordVisible = false;
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      // The app bar shows the title and a back button automatically
+      // The app bar with the "Sign Up" title
       appBar: AppBar(
-        title: const Text('Sign Up'),
-        backgroundColor: Colors.teal, // Let's give it a different color
+        title: const Text(
+          'Sign Up',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: const Color(0xFF2C3E50), // Dark blue-gray color
+        centerTitle: true,
+        elevation: 0, // No shadow
+        // Explicitly add a back button with a white color
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
         child: Center(
           child: SingleChildScrollView(
-            // Makes the page scrollable
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text(
-                  'Create a New Account',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                // Icon for creating an account
+                const Icon(
+                  Icons.person_add,
+                  size: 100,
+                  color: Color(0xFF34495E), // Darker shade for the icon
                 ),
                 const SizedBox(height: 20),
+
+                // Title text
+                const Text(
+                  'Create an Account',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF34495E),
+                  ),
+                ),
+                const SizedBox(height: 40),
+
                 // Username field
                 TextField(
                   controller: usernameController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Username',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey.shade400),
+                    ),
+                    focusedBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.redAccent, width: 2),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+
                 // Email field
                 TextField(
                   controller: emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.email),
-                  ),
                   keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Email',
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey.shade400),
+                    ),
+                    focusedBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.redAccent, width: 2),
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+
                 // Password field
                 TextField(
                   controller: passwordController,
-                  obscureText: true, // Hides the password
-                  decoration: const InputDecoration(
+                  obscureText: !_isPasswordVisible, // Hides/shows the password
+                  decoration: InputDecoration(
                     labelText: 'Password',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey.shade400),
+                    ),
+                    focusedBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.redAccent, width: 2),
+                    ),
+                    // Eye icon to toggle password visibility
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _isPasswordVisible
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        color: Colors.grey,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isPasswordVisible = !_isPasswordVisible;
+                        });
+                      },
+                    ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 40),
+
                 // Sign Up button
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(
-                      50,
-                    ), // Make button taller
+                    backgroundColor: Colors.redAccent, // Red button color
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(30), // Pill shape
                     ),
                   ),
                   onPressed: () {
-                    // When pressed, navigate to the home page.
-                    // 'pushReplacement' means the user can't go back to the signup page.
+                    // Navigate to the home page after signing up
                     Navigator.of(context).pushReplacement(
                       MaterialPageRoute(
                         builder: (context) =>
@@ -82,7 +143,14 @@ class SignupPage extends StatelessWidget {
                       ),
                     );
                   },
-                  child: const Text('Sign Up'),
+                  child: const Text(
+                    'Sign Up',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
               ],
             ),
