@@ -64,10 +64,11 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/lucknow_cables.geojson
-    - assets/Rail tracks.geojson
-    - assets/bnz-gkp (#3).geojson
-    - assets/BNZ-GKP_connected_yellow_4px_max1km.geojson
+    flutter:
+  uses-material-design: true
+  assets:
+    - assets/lucknow_network.geojson
+
 
 
   # To add assets to your application, add an assets section, like this:
