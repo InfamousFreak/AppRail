@@ -102,14 +102,16 @@ class _MapScreenState extends State<MapScreen> {
           ? const Center(child: CircularProgressIndicator())
           : FlutterMap(
               options: MapOptions(
-                initialCenter: LatLng(26.8467, 80.9462), // Lucknow center
+                initialCenter: LatLng(26.8467, 80.9462), // Lucknow
                 initialZoom: 14,
               ),
               children: [
+                /// ✅ Map tiles from OpenStreetMap
                 TileLayer(
                   urlTemplate:
                       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                   subdomains: const ['a', 'b', 'c'],
+                  userAgentPackageName: 'com.example.railway_app',
                 ),
 
                 /// ✅ OHE Poles Markers
@@ -175,10 +177,5 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 }
-
-
-
-
-
-      
   
+      
