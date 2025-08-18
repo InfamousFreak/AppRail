@@ -1,4 +1,6 @@
+
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_map/flutter_map.dart';
@@ -17,48 +19,76 @@ class _MapScreenState extends State<MapScreen> {
   final MapController _mapController = MapController();
   List<LatLng> cablePoints = [];
   List<Marker> poleMarkers = [];
-  Map<String, dynamic> poleData = {}; // Pole info store karega
-  double? nearestPoleDistance; // distance in meters
+  Map<String, dynamic> poleData = {};
+  double? nearestPoleDistance;
+  bool locationTried = false;
+  bool followUser = true; // 👈 new flag for auto-follow
+  StreamSubscription<Position>? positionStream;
 
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation();
+    _startLocationUpdates();
     _loadGeoJson();
   }
 
-  /// 📍 Get current GPS location
-  Future<void> _getCurrentLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
+  @override
+  void dispose() {
+    positionStream?.cancel();
+    super.dispose();
+  }
 
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  /// 🔄 Start continuous location updates
+  void _startLocationUpdates() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      return Future.error('GPS service disabled');
+      setState(() {
+        currentLocation = const LatLng(26.8467, 80.9462); // Lucknow fallback
+        locationTried = true;
+      });
+      return;
     }
 
-    permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
-        return Future.error('GPS permission denied');
+        setState(() {
+          currentLocation = const LatLng(26.8467, 80.9462);
+          locationTried = true;
+        });
+        return;
       }
     }
-
     if (permission == LocationPermission.deniedForever) {
-      return Future.error('GPS permission permanently denied');
+      setState(() {
+        currentLocation = const LatLng(26.8467, 80.9462);
+        locationTried = true;
+      });
+      return;
     }
 
-    Position pos =
-        await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+    // 🚶 Live tracking
+    positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5,
+      ),
+    ).listen((Position pos) {
+      final LatLng newLoc = LatLng(pos.latitude, pos.longitude);
+      setState(() {
+        currentLocation = newLoc;
+        locationTried = true;
+        _calculateNearestPoleDistance();
+      });
 
-    setState(() {
-      currentLocation = LatLng(pos.latitude, pos.longitude);
-      _calculateNearestPoleDistance(); // Distance calculate kare
+      if (followUser && _mapController.ready) {
+        _mapController.move(newLoc, _mapController.camera.zoom);
+      }
     });
   }
 
-  /// 📌 Load merged Lucknow GeoJSON
+  /// 📌 Load GeoJSON
   Future<void> _loadGeoJson() async {
     final String data =
         await rootBundle.loadString('assets/lucknow_network.geojson');
@@ -77,15 +107,11 @@ class _MapScreenState extends State<MapScreen> {
         linePoints.addAll(coords.map((c) => LatLng(c[1], c[0])));
       } else if (geom['type'] == 'Point') {
         var coord = geom['coordinates'];
-
         final LatLng poleLatLng = LatLng(coord[1], coord[0]);
         final String poleId = props['id']?.toString() ?? "Unknown";
         final String poleHeight = props['height']?.toString() ?? "N/A";
 
-        poleDetails["$poleLatLng"] = {
-          "id": poleId,
-          "height": poleHeight,
-        };
+        poleDetails["$poleLatLng"] = {"id": poleId, "height": poleHeight};
 
         markers.add(
           Marker(
@@ -93,9 +119,7 @@ class _MapScreenState extends State<MapScreen> {
             width: 25,
             height: 25,
             child: GestureDetector(
-              onTap: () {
-                _showPoleInfo(context, poleId, poleHeight);
-              },
+              onTap: () => _showPoleInfo(context, poleId, poleHeight),
               child: const Icon(Icons.circle, color: Colors.yellow, size: 12),
             ),
           ),
@@ -107,7 +131,7 @@ class _MapScreenState extends State<MapScreen> {
       cablePoints = linePoints;
       poleMarkers = markers;
       poleData = poleDetails;
-      _calculateNearestPoleDistance(); // Distance calculate after loading poles
+      _calculateNearestPoleDistance();
     });
   }
 
@@ -128,95 +152,89 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// 📏 Calculate nearest pole distance from current location
+  /// 📏 Calculate nearest pole distance
   void _calculateNearestPoleDistance() {
     if (currentLocation == null || poleData.isEmpty) return;
 
     double minDistance = double.infinity;
-
     for (String key in poleData.keys) {
       LatLng poleLatLng = LatLng(
-          double.parse(key.split(', ')[0].replaceAll('LatLng(', '')),
-          double.parse(key.split(', ')[1].replaceAll(')', '')));
+        double.parse(key.split(', ')[0].replaceAll('LatLng(', '')),
+        double.parse(key.split(', ')[1].replaceAll(')', '')),
+      );
       double distance = Geolocator.distanceBetween(
-          currentLocation!.latitude,
-          currentLocation!.longitude,
-          poleLatLng.latitude,
-          poleLatLng.longitude);
+        currentLocation!.latitude,
+        currentLocation!.longitude,
+        poleLatLng.latitude,
+        poleLatLng.longitude,
+      );
       if (distance < minDistance) {
         minDistance = distance;
       }
     }
 
-    setState(() {
-      nearestPoleDistance = minDistance;
-    });
+    setState(() => nearestPoleDistance = minDistance);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!locationTried && currentLocation == null && poleMarkers.isEmpty) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text("Lucknow OHE Map")),
-      body: currentLocation == null
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: const LatLng(26.8467, 80.9462), // Lucknow
-                    initialZoom: 13,
-                  ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.example.app',
-                    ),
-
-                    /// 📍 User GPS Marker
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: currentLocation!,
-                          width: 40,
-                          height: 40,
-                          child: const Icon(Icons.my_location,
-                              color: Colors.blue, size: 35),
-                        ),
-                        ...poleMarkers, // Yellow OHE Poles
-                      ],
-                    ),
-
-                    /// 📏 Cables Polyline
-                    PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: cablePoints,
-                          strokeWidth: 3,
-                          color: Colors.yellow,
-                        ),
-                      ],
-                    ),
-                  ],
+      body: FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: currentLocation ?? const LatLng(26.8467, 80.9462),
+          initialZoom: 13,
+          onPositionChanged: (pos, hasGesture) {
+            if (hasGesture) {
+              // 👈 stop auto-follow if user pans/zooms
+              setState(() => followUser = false);
+            }
+          },
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'com.example.app',
+          ),
+          if (currentLocation != null)
+            MarkerLayer(
+              markers: [
+                Marker(
+                  point: currentLocation!,
+                  width: 40,
+                  height: 40,
+                  child: const Icon(Icons.my_location,
+                      color: Colors.blue, size: 35),
                 ),
-                if (nearestPoleDistance != null)
-                  Positioned(
-                    bottom: 20,
-                    left: 20,
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-                      color: Colors.white70,
-                      child: Text(
-                        "Nearest Pole Distance: ${(nearestPoleDistance!/1000).toStringAsFixed(2)} km",
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
               ],
             ),
+          MarkerLayer(markers: poleMarkers),
+          PolylineLayer(
+            polylines: [
+              Polyline(
+                points: cablePoints,
+                strokeWidth: 3,
+                color: Colors.yellow,
+              ),
+            ],
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _getCurrentLocation,
-        child: const Icon(Icons.gps_fixed),
+        onPressed: () {
+          if (currentLocation != null) {
+            _mapController.move(currentLocation!, 16); // zoom on user
+            setState(() => followUser = true); // resume auto-follow
+          }
+        },
+        child: Icon(followUser ? Icons.gps_fixed : Icons.gps_not_fixed),
       ),
     );
   }
