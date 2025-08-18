@@ -18,6 +18,7 @@ class _MapScreenState extends State<MapScreen> {
   List<LatLng> cablePoints = [];
   List<Marker> poleMarkers = [];
   Map<String, dynamic> poleData = {}; // Pole info store karega
+  double? nearestPoleDistance; // distance in meters
 
   @override
   void initState() {
@@ -53,6 +54,7 @@ class _MapScreenState extends State<MapScreen> {
 
     setState(() {
       currentLocation = LatLng(pos.latitude, pos.longitude);
+      _calculateNearestPoleDistance(); // Distance calculate kare
     });
   }
 
@@ -63,7 +65,7 @@ class _MapScreenState extends State<MapScreen> {
     final geojson = json.decode(data);
 
     List<LatLng> linePoints = [];
-    List<Marker> markers = {};
+    List<Marker> markers = [];
     Map<String, dynamic> poleDetails = {};
 
     for (var feature in geojson['features']) {
@@ -105,6 +107,7 @@ class _MapScreenState extends State<MapScreen> {
       cablePoints = linePoints;
       poleMarkers = markers;
       poleData = poleDetails;
+      _calculateNearestPoleDistance(); // Distance calculate after loading poles
     });
   }
 
@@ -125,48 +128,90 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  /// 📏 Calculate nearest pole distance from current location
+  void _calculateNearestPoleDistance() {
+    if (currentLocation == null || poleData.isEmpty) return;
+
+    double minDistance = double.infinity;
+
+    for (String key in poleData.keys) {
+      LatLng poleLatLng = LatLng(
+          double.parse(key.split(', ')[0].replaceAll('LatLng(', '')),
+          double.parse(key.split(', ')[1].replaceAll(')', '')));
+      double distance = Geolocator.distanceBetween(
+          currentLocation!.latitude,
+          currentLocation!.longitude,
+          poleLatLng.latitude,
+          poleLatLng.longitude);
+      if (distance < minDistance) {
+        minDistance = distance;
+      }
+    }
+
+    setState(() {
+      nearestPoleDistance = minDistance;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Lucknow OHE Map")),
       body: currentLocation == null
           ? const Center(child: CircularProgressIndicator())
-          : FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: const LatLng(26.8467, 80.9462), // Lucknow
-                initialZoom: 13,
-              ),
+          : Stack(
               children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.example.app',
-                ),
-
-                /// 📍 User GPS Marker
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: currentLocation!,
-                      width: 40,
-                      height: 40,
-                      child: const Icon(Icons.my_location,
-                          color: Colors.blue, size: 35),
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: const LatLng(26.8467, 80.9462), // Lucknow
+                    initialZoom: 13,
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.example.app',
                     ),
-                    ...poleMarkers, // Yellow OHE Poles
+
+                    /// 📍 User GPS Marker
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: currentLocation!,
+                          width: 40,
+                          height: 40,
+                          child: const Icon(Icons.my_location,
+                              color: Colors.blue, size: 35),
+                        ),
+                        ...poleMarkers, // Yellow OHE Poles
+                      ],
+                    ),
+
+                    /// 📏 Cables Polyline
+                    PolylineLayer(
+                      polylines: [
+                        Polyline(
+                          points: cablePoints,
+                          strokeWidth: 3,
+                          color: Colors.yellow,
+                        ),
+                      ],
+                    ),
                   ],
                 ),
-
-                /// 📏 Cables Polyline
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: cablePoints,
-                      strokeWidth: 3,
-                      color: Colors.yellow,
+                if (nearestPoleDistance != null)
+                  Positioned(
+                    bottom: 20,
+                    left: 20,
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      color: Colors.white70,
+                      child: Text(
+                        "Nearest Pole Distance: ${(nearestPoleDistance!/1000).toStringAsFixed(2)} km",
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
                     ),
-                  ],
-                ),
+                  ),
               ],
             ),
       floatingActionButton: FloatingActionButton(
