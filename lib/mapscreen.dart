@@ -1,10 +1,10 @@
-import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-import 'map_view_page.dart'; // Import the MapViewPage
+import 'package:geodesy/geodesy.dart'; // For distance calculation
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -14,200 +14,165 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  GoogleMapController? _mapController;
-  Set<Polyline> _polylines = {};
-  LatLng? _currentPosition;
-  LatLng? _nearestPole;
-  double? _nearestDistance;
-  double? _cableHeight;
+  List<Polyline> _polylines = [];
+  List<Marker> _markers = [];
+  LatLng? _currentLocation;
+  String _nearestInfo = "Locating...";
 
-  // Toggle this for testing
-  bool useMockLocation = true;
-  LatLng mockLocation = const LatLng(26.8467, 80.9462); // Lucknow
+  final Geodesy geodesy = Geodesy();
 
   @override
   void initState() {
     super.initState();
-    _initializeMap();
+    _loadGeoJson();
+    _getCurrentLocation();
   }
 
-  // A new function to make initialization more reliable
-  Future<void> _initializeMap() async {
-    await _loadCableRoutes();
-    await _updateLocation();
+  // Load merged GeoJSON
+  Future<void> _loadGeoJson() async {
+    final data = await rootBundle.loadString('assets/lucknow_network.geojson');
+    final jsonResult = json.decode(data);
 
-    if (!useMockLocation) {
-      Timer.periodic(const Duration(seconds: 5), (_) => _updateLocation());
-    }
-  }
+    List<Polyline> tempPolylines = [];
+    List<Marker> tempMarkers = [];
 
-  Future<void> _loadCableRoutes() async {
-    try {
-      String data = await rootBundle.loadString(
-        'assets/lucknow_cables.geojson',
-      );
-      final jsonResult = json.decode(data);
+    for (var feature in jsonResult['features']) {
+      String type = feature['geometry']['type'];
 
-      Set<Polyline> tempPolylines = {};
-      int poleCounter = 0;
-      for (var feature in jsonResult['features']) {
+      if (type == 'LineString') {
         var coords = feature['geometry']['coordinates'];
-        List<LatLng> points = coords
-            .map<LatLng>((c) => LatLng(c[1].toDouble(), c[0].toDouble()))
-            .toList();
+        List<LatLng> points =
+            coords.map<LatLng>((c) => LatLng(c[1], c[0])).toList();
 
-        // Use a unique key for each polyline
-        tempPolylines.add(
-          Polyline(
-            polylineId: PolylineId('pole_${poleCounter++}'),
-            points: points,
-            color: Colors.redAccent,
-            width: 4,
+        tempPolylines.add(Polyline(
+          points: points,
+          strokeWidth: 3,
+          color: Colors.yellow,
+        ));
+      }
+
+      if (type == 'Point') {
+        var coords = feature['geometry']['coordinates'];
+        LatLng point = LatLng(coords[1], coords[0]);
+
+        tempMarkers.add(Marker(
+          width: 20.0,
+          height: 20.0,
+          point: point,
+          builder: (ctx) => const Icon(
+            Icons.circle,
+            color: Colors.yellow,
+            size: 10,
           ),
-        );
+        ));
       }
-
-      if (mounted) {
-        setState(() {
-          _polylines = tempPolylines;
-        });
-      }
-    } catch (e) {
-      print("Error loading GeoJSON: $e");
-      // Optionally show an error to the user
     }
+
+    setState(() {
+      _polylines = tempPolylines;
+      _markers = tempMarkers;
+    });
   }
 
-  Future<void> _updateLocation() async {
-    LatLng position;
-    try {
-      if (useMockLocation) {
-        position = mockLocation;
-      } else {
-        // You should add location permission handling here for a real app
-        Position p = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-        );
-        position = LatLng(p.latitude, p.longitude);
-      }
+  // Get current GPS + nearest pole distance
+  Future<void> _getCurrentLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
 
-      if (mounted) {
-        setState(() {
-          _currentPosition = position;
-        });
-        _findNearestPole();
-      }
-    } catch (e) {
-      print("Error getting location: $e");
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
     }
-  }
+    if (permission == LocationPermission.deniedForever) return;
 
-  void _findNearestPole() {
-    if (_currentPosition == null || _polylines.isEmpty) return;
+    Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high);
 
+    LatLng userLoc = LatLng(position.latitude, position.longitude);
+
+    // Nearest pole calculation
     double minDist = double.infinity;
-    LatLng? nearest;
-    double? height;
+    LatLng? nearestPole;
 
-    for (var poly in _polylines) {
-      for (var point in poly.points) {
-        double dist = Geolocator.distanceBetween(
-          _currentPosition!.latitude,
-          _currentPosition!.longitude,
-          point.latitude,
-          point.longitude,
-        );
-        if (dist < minDist) {
-          minDist = dist;
-          nearest = point;
-          // In a real app, you would fetch height from GeoJSON properties
-          height = 5.5; // Example: hardcoded height
-        }
+    for (var marker in _markers) {
+      double d = geodesy.distanceBetweenTwoGeoPoints(
+          userLoc, LatLng(marker.point.latitude, marker.point.longitude));
+      if (d < minDist) {
+        minDist = d;
+        nearestPole = marker.point;
       }
     }
 
-    if (mounted) {
-      setState(() {
-        _nearestPole = nearest;
-        _nearestDistance = minDist;
-        _cableHeight = height;
-      });
-    }
+    setState(() {
+      _currentLocation = userLoc;
+      if (nearestPole != null) {
+        _nearestInfo = "Nearest Pole: ${(minDist).toStringAsFixed(1)} meters";
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Railway Cable Map (Local)"),
-        backgroundColor: const Color(0xFF2C3E50),
+        title: const Text("Lucknow Railway Demo"),
+        backgroundColor: Colors.red,
       ),
-      body: _currentPosition == null
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
-          : Stack(
-              children: [
-                GoogleMap(
-                  onMapCreated: (controller) => _mapController = controller,
-                  initialCameraPosition: CameraPosition(
-                    target: _currentPosition!,
-                    zoom: 14,
-                  ),
-                  polylines: _polylines,
-                  markers: {
-                    Marker(
-                      markerId: const MarkerId("user"),
-                      position: _currentPosition!,
-                      icon: BitmapDescriptor.defaultMarkerWithHue(
-                        BitmapDescriptor.hueAzure,
-                      ),
-                    ),
-                  },
-                ),
-                Positioned(
-                  bottom: 20,
-                  left: 10,
-                  right: 10,
-                  child: Card(
-                    elevation: 8,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            "Nearest OHE Pole: ${_nearestDistance?.toStringAsFixed(1) ?? '--'} m away",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "Cable Height: ${_cableHeight ?? '--'} m",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+      body: Stack(
+        children: [
+          FlutterMap(
+            options: MapOptions(
+              center: LatLng(26.8467, 80.9462), // Lucknow
+              zoom: 12.0,
             ),
+            children: [
+              TileLayer(
+                urlTemplate:
+                    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                subdomains: const ['a', 'b', 'c'],
+              ),
+              PolylineLayer(polylines: _polylines),
+              MarkerLayer(markers: _markers),
+              if (_currentLocation != null)
+                MarkerLayer(markers: [
+                  Marker(
+                    width: 40,
+                    height: 40,
+                    point: _currentLocation!,
+                    builder: (ctx) => const Icon(
+                      Icons.my_location,
+                      color: Colors.blue,
+                      size: 30,
+                    ),
+                  ),
+                ]),
+            ],
+          ),
+
+          // ✅ Info bar bottom
+          Positioned(
+            bottom: 20,
+            left: 20,
+            right: 20,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                _nearestInfo,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          )
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (context) => const MapViewPage()));
-        },
-        backgroundColor: Colors.redAccent,
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.layers),
+        onPressed: _getCurrentLocation,
+        child: const Icon(Icons.location_searching),
       ),
     );
   }
