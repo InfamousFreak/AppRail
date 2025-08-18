@@ -79,7 +79,7 @@ class _MapScreenState extends State<MapScreen> {
           // show map after loading
           return FlutterMap(
             options: MapOptions(
-              center: LatLng(26.8467, 80.9462), // Lucknow center
+              intialcenter: LatLng(26.8467, 80.9462), // Lucknow center
               zoom: 12.0,
             ),
             children: [
