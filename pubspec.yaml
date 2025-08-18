@@ -1,4 +1,5 @@
 
+
 name: railway_app
 description: A new Flutter project
 publish_to: "none"
@@ -17,8 +18,8 @@ dependencies:
   # Location services
   geolocator: ^13.0.1
 
-  # Blue GPS dot on flutter_map
-  flutter_map_location_marker: ^8.0.0
+  # Blue GPS dot on flutter_map (new version compatible with flutter_map 7 + geolocator 13)
+  flutter_map_location_marker: ^9.1.1
 
   # State management (optional, helps avoid setState issues)
   provider: ^6.1.2
@@ -33,6 +34,3 @@ flutter:
 
   assets:
     - assets/lucknow_network.geojson
-
-
-
