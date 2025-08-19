@@ -1,4 +1,4 @@
-  import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_map/flutter_map.dart';
@@ -44,7 +44,6 @@ class _MapScreenState extends State<MapScreen> {
       _geoPoints = points;
     });
 
-    // Auto zoom to cluster
     if (points.isNotEmpty) {
       final bounds = LatLngBounds();
       for (var p in points) {
@@ -67,7 +66,7 @@ class _MapScreenState extends State<MapScreen> {
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.best,
-        distanceFilter: 5, // update every 5 meters
+        distanceFilter: 5,
       ),
     );
 
@@ -91,11 +90,11 @@ class _MapScreenState extends State<MapScreen> {
       body: FlutterMap(
         mapController: _mapController,
         options: MapOptions(
-          initialCenter: LatLng(26.8467, 80.9462), // Lucknow center
+          initialCenter: LatLng(26.8467, 80.9462),
           initialZoom: 12,
           onTap: (tapPosition, point) {
             setState(() {
-              _selectedPole = point; // Select pole
+              _selectedPole = point;
             });
           },
         ),
@@ -119,10 +118,10 @@ class _MapScreenState extends State<MapScreen> {
                 .toList(),
           ),
 
-          // Blue GPS dot
-          CurrentLocationLayer(),
+          // ✅ New Blue GPS dot (updated API)
+          LocationMarkerLayer(),
 
-          // Live red navigation line
+          // Red navigation line
           if (_userLocation != null && _selectedPole != null)
             PolylineLayer(
               polylines: [
@@ -136,11 +135,10 @@ class _MapScreenState extends State<MapScreen> {
         ],
       ),
 
-      // Floating GPS button
       floatingActionButton: FloatingActionButton(
         onPressed: _centerOnUser,
         child: const Icon(Icons.my_location),
       ),
     );
   }
-}                        
+}
