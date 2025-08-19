@@ -20,7 +20,6 @@ dependencies:
 
   # Blue GPS dot on flutter_map (new version compatible with flutter_map 7 + geolocator 13)
   flutter_map_location_marker: ^9.1.1
-
   # State management (optional, helps avoid setState issues)
   provider: ^6.1.2
 
