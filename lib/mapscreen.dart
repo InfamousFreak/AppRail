@@ -15,10 +15,12 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final MapController _mapController = MapController();
-  List<LatLng> _geoPoints = [];
+  List<Map<String, dynamic>> _geoPoles = []; // stores pole number + LatLng
   LatLng? _userLocation;
-  LatLng? _selectedPole;
+  Map<String, dynamic>? _selectedPole;
   Stream<Position>? _positionStream;
+  final TextEditingController _searchController = TextEditingController();
+  double? _distanceToPole;
 
   @override
   void initState() {
@@ -31,23 +33,28 @@ class _MapScreenState extends State<MapScreen> {
     final data = await rootBundle.loadString('assets/lucknow_network.geojson');
     final jsonResult = json.decode(data);
 
-    List<LatLng> points = [];
+    List<Map<String, dynamic>> poles = [];
 
     for (var feature in jsonResult['features']) {
       final coords = feature['geometry']['coordinates'];
+      final properties = feature['properties'];
       if (coords is List && coords.length == 2) {
-        points.add(LatLng(coords[1], coords[0]));
+        poles.add({
+          "number": properties['number'] ?? "Unknown",
+          "latLng": LatLng(coords[1], coords[0]),
+        });
       }
     }
 
     setState(() {
-      _geoPoints = points;
+      _geoPoles = poles;
     });
 
-    if (points.isNotEmpty) {
+    // Auto zoom to all poles initially
+    if (poles.isNotEmpty) {
       final bounds = LatLngBounds();
-      for (var p in points) {
-        bounds.extend(p);
+      for (var p in poles) {
+        bounds.extend(p['latLng']);
       }
       _mapController.fitBounds(bounds,
           options: const FitBoundsOptions(padding: EdgeInsets.all(30)));
@@ -73,64 +80,144 @@ class _MapScreenState extends State<MapScreen> {
     _positionStream!.listen((pos) {
       setState(() {
         _userLocation = LatLng(pos.latitude, pos.longitude);
+        _updateDistance();
       });
     });
   }
 
-  void _centerOnUser() async {
+  void _centerOnUser() {
     if (_userLocation != null) {
       _mapController.move(_userLocation!, 16);
+    }
+  }
+
+  void _updateDistance() {
+    if (_userLocation != null && _selectedPole != null) {
+      final Distance distance = Distance();
+      _distanceToPole =
+          distance.as(LengthUnit.Meter, _userLocation!, _selectedPole!['latLng']);
+    }
+  }
+
+  void _searchPole(String number) {
+    final found = _geoPoles.firstWhere(
+      (p) => p['number'].toString() == number,
+      orElse: () => {},
+    );
+
+    if (found.isNotEmpty) {
+      setState(() {
+        _selectedPole = found;
+        _updateDistance();
+      });
+
+      // Auto zoom to selected pole
+      _mapController.move(found['latLng'], 18);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Pole not found!")));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Map with Live Navigation")),
-      body: FlutterMap(
-        mapController: _mapController,
-        options: MapOptions(
-          initialCenter: LatLng(26.8467, 80.9462),
-          initialZoom: 12,
-          onTap: (tapPosition, point) {
-            setState(() {
-              _selectedPole = point;
-            });
-          },
-        ),
+      appBar: AppBar(title: const Text("OHE Poles Map")),
+      body: Stack(
         children: [
-          TileLayer(
-            urlTemplate:
-                "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-            subdomains: const ['a', 'b', 'c'],
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: LatLng(26.8467, 80.9462),
+              initialZoom: 12,
+              onTap: (tapPosition, point) {
+                setState(() {
+                  _selectedPole = _geoPoles.firstWhere(
+                      (p) => p['latLng'] == point,
+                      orElse: () => _selectedPole);
+                  _updateDistance();
+                });
+              },
+            ),
+            children: [
+              TileLayer(
+                urlTemplate:
+                    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                subdomains: const ['a', 'b', 'c'],
+              ),
+
+              // Yellow poles markers
+              MarkerLayer(
+                markers: _geoPoles
+                    .map((p) => Marker(
+                          point: p['latLng'],
+                          width: 40,
+                          height: 40,
+                          child: const Icon(Icons.location_on,
+                              color: Colors.yellow, size: 30),
+                        ))
+                    .toList(),
+              ),
+
+              // Blue GPS dot
+              CurrentLocationLayer(),
+
+              // Red navigation line
+              if (_userLocation != null && _selectedPole != null)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: [_userLocation!, _selectedPole!['latLng']],
+                      color: Colors.red,
+                      strokeWidth: 4,
+                    )
+                  ],
+                ),
+            ],
           ),
 
-          // Yellow GeoJSON poles
-          MarkerLayer(
-            markers: _geoPoints
-                .map((p) => Marker(
-                      point: p,
-                      width: 40,
-                      height: 40,
-                      child: const Icon(Icons.location_on,
-                          color: Colors.yellow, size: 30),
-                    ))
-                .toList(),
+          // Search bar at top
+          Positioned(
+            top: 10,
+            left: 10,
+            right: 10,
+            child: Card(
+              elevation: 4,
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: "Enter Pole Number",
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.search),
+                    onPressed: () {
+                      _searchPole(_searchController.text.trim());
+                    },
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 0, horizontal: 15),
+                  border: InputBorder.none,
+                ),
+                onSubmitted: (value) {
+                  _searchPole(value.trim());
+                },
+              ),
+            ),
           ),
 
-          // ✅ New Blue GPS dot (updated API)
-          LocationMarkerLayer(),
-
-          // Red navigation line
-          if (_userLocation != null && _selectedPole != null)
-            PolylineLayer(
-              polylines: [
-                Polyline(
-                  points: [_userLocation!, _selectedPole!],
-                  color: Colors.red,
-                  strokeWidth: 4,
-                )
-              ],
+          // Distance display
+          if (_distanceToPole != null)
+            Positioned(
+              bottom: 20,
+              left: 20,
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                color: Colors.white70,
+                child: Text(
+                  "Distance to pole: ${_distanceToPole!.toStringAsFixed(1)} m",
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
             ),
         ],
       ),
@@ -142,3 +229,4 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 }
+            
