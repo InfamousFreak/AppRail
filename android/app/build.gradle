@@ -1,32 +1,29 @@
 plugins {
-    id 'com.android.application'
-    id 'kotlin-android'
-    id 'dev.flutter.flutter-gradle-plugin'
+    id "com.android.application"
+    id "org.jetbrains.kotlin.android"
 }
 
 android {
-    namespace "com.example.railway_app"
-    compileSdkVersion 34
+    namespace "com.example.apprail" // <-- change this to your package name
+    compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.railway_app"
-        minSdkVersion 23
-        targetSdkVersion 34
+        applicationId "com.example.apprail" // <-- change this to your package name
+        minSdk 21
+        targetSdk 34
         versionCode 1
         versionName "1.0"
     }
 
     buildTypes {
         release {
-            signingConfig signingConfigs.debug
+            minifyEnabled false
+            shrinkResources false
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
     }
 }
 
-flutter {
-    source '../..'
-}
-
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.24"  // ✅ use fixed Kotlin version
 }
