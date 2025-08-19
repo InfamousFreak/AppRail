@@ -1,33 +1,36 @@
-name: Flutter Release APK
+name: Flutter CI
 
 on:
-  workflow_dispatch:  # Manual trigger from GitHub Actions UI
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
 
 jobs:
   build:
-    name: Build Release APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Setup Flutter
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.32.8'
+          flutter-version: "3.22.2"   # stable version
 
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Clean previous build
-        run: flutter clean
+      - name: Analyze project
+        run: flutter analyze
 
       - name: Build release APK
         run: flutter build apk --release
 
-      - name: Upload APK as artifact
-        uses: actions/upload-artifact@v4   # ✅ Updated to latest version
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
         with:
-          name: app-release-apk
+          name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+
