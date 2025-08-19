@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace "com.example.apprail"   // 👉 change to your actual package name
+    namespace "com.example.apprail"   // 👉 change to your package
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.apprail"  // 👉 change to your actual package name
+        applicationId "com.example.apprail"  // 👉 change to your package
         minSdk 21
         targetSdk 34
         versionCode 1
@@ -22,9 +22,6 @@ android {
             minifyEnabled false
             shrinkResources false
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
-        }
-        debug {
-            // keep default debug settings
         }
     }
 
@@ -49,4 +46,3 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:1.2.1"
     androidTestImplementation "androidx.test.espresso:espresso-core:3.6.1"
 }
-
