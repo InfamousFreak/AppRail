@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace "com.example.apprail"
+    namespace "com.example.apprail"  // use your package name
     compileSdk 34
 
     defaultConfig {
@@ -36,7 +36,9 @@ android {
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.24"
 
+    // Use compatible versions
     implementation "flutter_map:8.2.1"
     implementation "flutter_map_location_marker:10.1.0"
     implementation "geolocator:14.0.2"
+    implementation "latlong2:0.9.1"
 }
