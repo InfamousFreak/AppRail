@@ -15,11 +15,8 @@ dependencies:
   flutter_map: ^7.0.2
   latlong2: ^0.9.0
 
-  # Real-time location marker for flutter_map
-  flutter_map_location_marker:
-    git:
-      url: https://github.com/tlserver/flutter_map_location_marker.git
-      ref: master
+  # Real-time location marker for flutter_map (stable version)
+  flutter_map_location_marker: ^7.0.0
 
   # GPS & Geocoding
   geolocator: ^11.0.0
@@ -45,3 +42,4 @@ flutter:
   assets:
     - assets/geojson/lucknow_network.geojson
     - assets/images/
+
