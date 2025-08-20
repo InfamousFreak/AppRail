@@ -1,222 +1,173 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:flutter_map_location_marker/flutter_map_location_marker.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
-
   @override
   _MapScreenState createState() => _MapScreenState();
 }
 
 class _MapScreenState extends State<MapScreen> {
-  final MapController _mapController = MapController();
-  List<Marker> _oheMarkers = [];
-  List<Polyline> _cablePolylines = [];
-  LatLng? _userLocation;
-  String _distanceText = "";
-  TextEditingController _searchController = TextEditingController();
+  MapController _mapController = MapController();
+  List<Marker> _markers = [];
+  List<Polyline> _polylines = [];
+  LatLng? _currentPosition;
+  String _searchQuery = "";
+  Marker? _selectedMast;
 
   @override
   void initState() {
     super.initState();
     _loadGeoJson();
-    _getUserLocation();
+    _getCurrentLocation();
   }
 
   Future<void> _loadGeoJson() async {
     final String data =
         await rootBundle.loadString('assets/geojson/lucknow_network.geojson');
-    final jsonResult = json.decode(data);
+    final geojson = json.decode(data);
 
     List<Marker> markers = [];
     List<Polyline> polylines = [];
 
-    for (var feature in jsonResult['features']) {
-      if (feature['geometry']['type'] == 'Point') {
-        final coords = feature['geometry']['coordinates'];
-        final properties = feature['properties'];
+    for (var feature in geojson["features"]) {
+      if (feature["geometry"]["type"] == "Point") {
+        var coords = feature["geometry"]["coordinates"];
+        var name = feature["properties"]["name"] ?? "OHE Mast";
 
-        String mastNo = properties['mast_no']?.toString() ??
-            properties['name']?.toString() ??
-            properties['id']?.toString() ??
-            "Unknown";
+        markers.add(Marker(
+          width: 80.0,
+          height: 80.0,
+          point: LatLng(coords[1], coords[0]),
+          builder: (ctx) => Icon(Icons.location_on, color: Colors.red),
+        ));
+      }
 
-        markers.add(
-          Marker(
-            point: LatLng(coords[1], coords[0]),
-            width: 80,
-            height: 80,
-            builder: (ctx) => Column(
-              children: [
-                const Icon(Icons.location_on, color: Colors.red, size: 35),
-                Text(mastNo,
-                    style: const TextStyle(
-                        fontSize: 10, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        );
-      } else if (feature['geometry']['type'] == 'LineString') {
-        final coords = feature['geometry']['coordinates'] as List;
-        polylines.add(
-          Polyline(
-            points: coords.map((c) => LatLng(c[1], c[0])).toList(),
-            strokeWidth: 4.0,
-            color: Colors.yellow,
-          ),
-        );
+      if (feature["geometry"]["type"] == "LineString") {
+        var coords = feature["geometry"]["coordinates"];
+        List<LatLng> points = [];
+        for (var c in coords) {
+          points.add(LatLng(c[1], c[0]));
+        }
+
+        polylines.add(Polyline(
+          points: points,
+          strokeWidth: 3.0,
+          color: Colors.yellow,
+        ));
       }
     }
 
     setState(() {
-      _oheMarkers = markers;
-      _cablePolylines = polylines;
+      _markers = markers;
+      _polylines = polylines;
     });
-
-    // auto zoom to fit all poles
-    if (markers.isNotEmpty) {
-      var bounds = LatLngBounds();
-      for (var m in markers) {
-        bounds.extend(m.point);
-      }
-      _mapController.fitBounds(bounds);
-    }
   }
 
-  Future<void> _getUserLocation() async {
+  Future<void> _getCurrentLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
 
-    LocationPermission permission = await Geolocator.requestPermission();
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) return;
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
 
     Geolocator.getPositionStream().listen((Position position) {
       setState(() {
-        _userLocation = LatLng(position.latitude, position.longitude);
-        _updateNearestDistance();
+        _currentPosition = LatLng(position.latitude, position.longitude);
       });
     });
   }
 
-  void _updateNearestDistance() {
-    if (_userLocation == null || _oheMarkers.isEmpty) return;
-
-    final distanceCalc = Distance();
-    double minDist = double.infinity;
-
-    for (var marker in _oheMarkers) {
-      final d =
-          distanceCalc(_userLocation!, marker.point); // meters
-      if (d < minDist) minDist = d;
-    }
-
+  void _searchMast(String query) {
     setState(() {
-      _distanceText = "Nearest OHE Pole: ${(minDist / 1000).toStringAsFixed(2)} km";
+      _searchQuery = query;
+      _selectedMast = null;
     });
+
+    for (var marker in _markers) {
+      if (marker.builder != null && query.isNotEmpty) {
+        // Check if mast name matches query
+        if ((marker.key?.toString() ?? "").contains(query)) {
+          setState(() {
+            _selectedMast = marker;
+          });
+          _mapController.move(marker.point, 17); // Auto zoom to mast
+          break;
+        }
+      }
+    }
   }
 
-  void _searchMast(String query) {
-    final marker = _oheMarkers.firstWhere(
-        (m) => (m.builder(context) as Column)
-            .children
-            .whereType<Text>()
-            .any((t) => t.data == query),
-        orElse: () => Marker(
-            point: LatLng(0, 0),
-            width: 0,
-            height: 0,
-            builder: (ctx) => Container()));
-
-    if (marker.point.latitude != 0) {
-      _mapController.move(marker.point, 17); // zoom into searched mast
-
-      if (_userLocation != null) {
-        final distanceCalc = Distance();
-        final d = distanceCalc(_userLocation!, marker.point);
-        setState(() {
-          _distanceText =
-              "Mast $query is ${(d / 1000).toStringAsFixed(2)} km away";
-        });
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Mast $query not found in map")));
-    }
+  double _calculateDistance(LatLng p1, LatLng p2) {
+    final Distance distance = Distance();
+    return distance.as(LengthUnit.Meter, p1, p2);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Railway OHE Map - Lucknow"),
+        title: Text("Lucknow OHE Map"),
         backgroundColor: Colors.red,
       ),
-      body: Column(
+      body: Stack(
         children: [
-          // 🔍 Search bar
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: const InputDecoration(
-                        hintText: "Enter Mast No (e.g. 762/25)",
-                        border: OutlineInputBorder()),
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: LatLng(26.8467, 80.9462), // Lucknow center
+              initialZoom: 12,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate:
+                    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                subdomains: ['a', 'b', 'c'],
+              ),
+              PolylineLayer(polylines: _polylines),
+              MarkerLayer(markers: _markers),
+              if (_currentPosition != null)
+                CurrentLocationLayer(),
+            ],
+          ),
+          Positioned(
+            top: 10,
+            left: 15,
+            right: 15,
+            child: Card(
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: "Search Mast No. (e.g. 762/25)",
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.all(10),
+                  suffixIcon: Icon(Icons.search),
+                ),
+                onSubmitted: _searchMast,
+              ),
+            ),
+          ),
+          if (_selectedMast != null && _currentPosition != null)
+            Positioned(
+              bottom: 20,
+              left: 20,
+              right: 20,
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(10.0),
+                  child: Text(
+                    "Distance to Mast: ${_calculateDistance(_currentPosition!, _selectedMast!.point).toStringAsFixed(2)} meters",
+                    style: TextStyle(fontSize: 16),
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () {
-                    _searchMast(_searchController.text.trim());
-                  },
-                )
-              ],
-            ),
-          ),
-          Expanded(
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: LatLng(26.8467, 80.9462), // Lucknow center
-                initialZoom: 12,
               ),
-              children: [
-                TileLayer(
-                  urlTemplate:
-                      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                  subdomains: const ['a', 'b', 'c'],
-                ),
-                PolylineLayer(polylines: _cablePolylines),
-                MarkerLayer(markers: _oheMarkers),
-                if (_userLocation != null)
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: _userLocation!,
-                        width: 60,
-                        height: 60,
-                        builder: (ctx) => const Icon(Icons.my_location,
-                            color: Colors.blue, size: 40),
-                      )
-                    ],
-                  )
-              ],
             ),
-          ),
-          if (_distanceText.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(_distanceText,
-                  style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold)),
-            )
         ],
       ),
     );
