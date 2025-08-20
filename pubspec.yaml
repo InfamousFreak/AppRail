@@ -1,6 +1,6 @@
 name: apprail
-description: A Railway Route and OHE Pole tracking app for Lucknow Division demo.
-publish_to: "none" # Remove this if you want to publish on pub.dev
+description: Railway OHE Pole and Cable Mapping App
+publish_to: 'none' 
 
 version: 1.0.0+1
 
@@ -11,12 +11,12 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Mapping
+  # Map & GeoJSON
   flutter_map: ^7.0.2
-  google_maps_flutter: ^2.9.0
   latlong2: ^0.9.0
+  flutter_map_location_marker: ^8.0.5
 
-  # Location & geocoding
+  # Location & Geocoding
   geolocator: ^11.0.0
   geocoding: ^2.2.0
 
@@ -25,6 +25,7 @@ dependencies:
 
   # UI
   cupertino_icons: ^1.0.8
+  flutter_typeahead: ^5.2.0
 
 dev_dependencies:
   flutter_test:
@@ -34,8 +35,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # If you have assets (GeoJSON, KML, images)
   assets:
     - assets/geojson/
     - assets/images/
-
